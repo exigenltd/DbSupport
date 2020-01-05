@@ -1,0 +1,12 @@
+{
+    "require": {
+        "phpunit/phpunit": "4.8.*",
+        "doctrine/instantiator": "1.0.*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Exigen\\DbSupport\\": "../src",
+            "App\\": "classes/App"
+        }
+    }
+}
