@@ -6,6 +6,7 @@ use Exigen\DbSupport\DbRecord;
 /**
  * Invoice
  *
+ * @method getInvoiceNumber()
  */
 class Invoice extends DbRecord
 {
@@ -15,12 +16,19 @@ class Invoice extends DbRecord
     public function __construct()
     {
         $fieldList = array(
-            'company'    => array("type" => DbRecord::DB_TYPE_STRING, "db_type" => 'varchar(100)'),
-            'created_at' => array(
+            'company'        => array("type" => DbRecord::DB_TYPE_STRING, "db_type" => 'varchar(100)'),
+            'invoice_number' => array("type" => DbRecord::DB_TYPE_STRING, "db_type" => 'varchar(16)'),
+            'invoice_status'     => array(
+                'type'    => DbRecord::DB_TYPE_STRING,
+                'db_type' => 'varchar(32)',
+                "access"  => DbRecord::ACCESS_NONE
+            ),
+            'created_at'     => array(
                 'type'    => DbRecord::DB_TYPE_DATE_TIME,
                 'db_type' => 'datetime',
                 "access"  => DbRecord::ACCESS_READ_ONLY
             ),
+
         );
         parent::__construct("invoices", "id", $fieldList);
 
@@ -44,6 +52,13 @@ class Invoice extends DbRecord
         });
     }
 
+    public function getStatus() {
+        return $this->fieldValue("invoice_status");
+    }
+    public function setStatus($status) {
+        return $this->fieldValue("invoice_status", $status);
+    }
+
     public function getVat()
     {
         $this->ensureLineItemListExists();
@@ -51,6 +66,14 @@ class Invoice extends DbRecord
             /* @var \App\InvoiceLineItem $item */
             return ($carry + $item->getVat());
         });
+    }
+
+    public function setInvoiceNumber($num)
+    {
+        // Ensure invoice number is 8 characters long
+        $len = 8;
+        $val = strtoupper(substr(str_repeat("0", $len) . $num, -$len));
+        return $this->fieldValue("invoice_number", $val);
     }
 
     public function appendLineItem(InvoiceLineItem $lineItem)

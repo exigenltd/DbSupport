@@ -22,12 +22,12 @@ abstract class DbRecord
     const ACCESS_READ_ONLY = "read";
     const ACCESS_FULL = "full";
 
-    const METHODS_NONE = "none";
-    const METHODS_GETTER_SETTER = "getSet";
-    const METHODS_SINGLE = "single";
+    const ACCESSORS_NONE = "none";
+    const ACCESSORS_GETTER_SETTER = "getSet";
+    const ACCESSORS_SINGLE = "single";
 
     /**  @var string */
-    private static $accessMethod;
+    private static $accessMethod = self::ACCESSORS_GETTER_SETTER;
 
     /**  @var string */
     private $tableName;
@@ -190,6 +190,13 @@ abstract class DbRecord
                 $separator = ",";
             }
 
+            // Add the id to bind array
+            $field_detail_array[] = array(
+                DbAccess::PRIVATE_FIELD_NAME  => $this->primaryKey,
+                DbAccess::PRIVATE_FIELD_VALUE => $this->valArray[$this->primaryKey],
+                DbAccess::PRIVATE_FIELD_TYPE  => PDO::PARAM_INT
+            );
+
             $sql = "UPDATE " . $this->tableName . " SET " . $update_list . " WHERE "
                 . $this->primaryKey . "=:" . $this->primaryKey;
         }
@@ -202,20 +209,6 @@ abstract class DbRecord
             $this->valArray[$this->primaryKey] = $update_id;
         }
         return $this->valArray[$this->primaryKey];
-
-//        $statement = DbAccess::runQuery($sql, $field_detail_array);
-//
-//        if ($this->new_db_row) {
-//            $this->valArray[$this->primaryKey] = self::$dbConnection->lastInsertId();
-//        }
-//
-//        if ($statement !== false) {
-//            // value saved to database, no long new field
-//            $this->new_db_row = false;
-//            return true;
-//        } else {
-//            return false;
-//        }
     }
 
     /**
@@ -235,21 +228,14 @@ abstract class DbRecord
 
             $sql = "SELECT $fieldList FROM " . $this->tableName . " WHERE " . $this->primaryKey . "=:id";
             /* @var $statement PDOStatement */
-            $bind = array();
-            $bind[] = array(
-                DbAccess::PRIVATE_FIELD_NAME  => "id",
-                DbAccess::PRIVATE_FIELD_VALUE => $id,
-                DbAccess::PRIVATE_FIELD_TYPE  => PDO::PARAM_INT,
-            );
+            $bind = array("id" => $id);
             try {
-                $statement = DbAccess::runQuery($sql, $bind);
+                $result = DbAccess::getArrayFromSQL($sql, $bind);
             } catch (Exception $e) {
                 return false;
             }
-            $result = $statement->fetch(PDO::FETCH_ASSOC);
-
-            if ($result !== false) {
-                $this->valArray = &$result;
+            if (count($result) != 0) {
+                $this->valArray = &$result[0];
                 $this->new_db_row = false;
                 $filled = true;
             }
@@ -280,6 +266,16 @@ abstract class DbRecord
         return $fieldList;
     }
 
+    protected function getFieldList()
+    {
+        return array_keys($this->fieldList);
+    }
+
+    protected function fieldExists($field_key)
+    {
+        return isset ($this->fieldList[$field_key]);
+    }
+
     /**
      * Get/Set value of given field.
      *
@@ -291,8 +287,8 @@ abstract class DbRecord
      */
     protected function fieldValue($field_key, $new_val = null, $update_flag = true)
     {
-        // If update flag is passed, only update if update flag is set.
-        // Otherwise update if a second parameter is passed.
+        // If second parameter is passed, then normally this is update value.
+        // BUT, a third value can be used to indicate if value is bing updated.
         $update_flag = (func_num_args() > 2) ? $update_flag : (func_num_args() > 1);
 
         $type = (isset ($this->fieldList[$field_key])) ? $this->fieldList[$field_key] : self::DB_TYPE_STRING;
@@ -300,6 +296,7 @@ abstract class DbRecord
         if ($update_flag) {
             switch ($type) {
                 case self::DB_TYPE_DATE_TIME:
+                    $new_val = intval($new_val);
                     $this->valArray[$field_key] = gmdate("Y-m-d H:i:s", $new_val); // NOTE - always UTC
                     break;
                 case self::DB_TYPE_BOOLEAN:
@@ -409,12 +406,11 @@ abstract class DbRecord
         $sql = "SHOW columns FROM " . $this->tableName;
 
         // Get existing columns
-
         $existing_tbl_def = array();
-        $statement = DbAccess::runQuery($sql);
-        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        foreach (DbAccess::getArrayFromSQL($sql) as $row) {
             $existing_tbl_def[] = $row;
         }
+
         // Now check if column we require exist.
         foreach ($this->columnDef as $field => $type) {
             // Check if exist
@@ -431,7 +427,7 @@ abstract class DbRecord
             }
 
             $sql = "ALTER TABLE " . $this->tableName . " ADD $field $type";
-            DbAccess::runQuery($sql);
+            DbAccess::runUpdateQuery($sql);
         }
         return true;
     }
@@ -456,7 +452,7 @@ abstract class DbRecord
             $sql .= ")";
 
             try {
-                DbAccess::runQuery($sql);
+                DbAccess::runUpdateQuery($sql);
             } catch (Exception $e) {
                 print $e->getMessage();
                 print_r($e->getTrace());
@@ -477,15 +473,10 @@ abstract class DbRecord
         $field_key = "Tables_in_" . DbAccess::schema();
 
         try {
-            $statement = DbAccess::runQuery($sql);
-
-            if ($statement !== false) {
-                $data = $statement->fetchAll(PDO::FETCH_ASSOC);
-
-                foreach ($data as $row) {
-                    if (strtolower($row[$field_key]) == $table_name) {
-                        return true;
-                    }
+            $data = DbAccess::getArrayFromSQL($sql);
+            foreach ($data as $row) {
+                if (strtolower($row[$field_key]) == $table_name) {
+                    return true;
                 }
             }
         } catch (Exception $e) {
@@ -508,7 +499,7 @@ abstract class DbRecord
         $set_value_flag = false;
         $field_key = "";
 
-        if (self::$accessMethod == self::METHODS_GETTER_SETTER) {
+        if (self::$accessMethod == self::ACCESSORS_GETTER_SETTER) {
             // Check if setter or getter
             $setter = substr($method, 0, 3);
             if (($setter == 'get') || ($setter == 'set')) {
@@ -530,7 +521,7 @@ abstract class DbRecord
                 }
             }
         } else {
-            if (self::$accessMethod == self::METHODS_SINGLE) {
+            if (self::$accessMethod == self::ACCESSORS_SINGLE) {
                 $name = strToLower($method);
                 $set_value_flag = (sizeof($arguments) > 0);
 
@@ -593,4 +584,25 @@ abstract class DbRecord
         return true;
     }
 
+    /**
+     * Deletes record from database.
+     *
+     * @return void
+     * @throws Exception
+     */
+    public function delete()
+    {
+        $sql = "DELETE FROM " . $this->tableName . " WHERE " . $this->primaryKey . "=:$this->primaryKey";
+        $bind_parameter_array[] = array(
+            DbAccess::PRIVATE_FIELD_NAME  => $this->primaryKey,
+            DbAccess::PRIVATE_FIELD_VALUE => $this->id(),
+            DbAccess::PRIVATE_FIELD_TYPE  => PDO::PARAM_STR
+        );
+        $statement = DbAccess::runUpdateQuery($sql, $bind_parameter_array);
+
+        // clear flag to indicate this not saved to database
+        if ($statement != -1) {
+            $this->new_db_row = true;
+        }
+    }
 }

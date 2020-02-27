@@ -18,7 +18,7 @@ class QueryTest extends PHPUnit_Framework_TestCase
     public function testFilter()
     {
         // Set up the database
-        DbSetup::configure(DbRecord::METHODS_GETTER_SETTER);
+        DbSetup::configure(DbRecord::ACCESSORS_GETTER_SETTER);
         try {
             // Ensure the customer table is created
             $customer = new Customer();
@@ -43,27 +43,45 @@ class QueryTest extends PHPUnit_Framework_TestCase
         // Check number of line items
         $this->assertEquals(0, $invoice->getLineItemCount());
 
+        $qty = 3;
+        $val = 12;
+        $total1 = $qty * $val;
+        $vat1 = Util::calculateVat($total1);
+
         // Add Line item and check count
         $lineItem1 = new InvoiceLineItem();
-        $lineItem1->setQuantity(3);
+        $lineItem1->setQuantity($qty);
         $lineItem1->setDescription("Pens");
-        $lineItem1->setNetAmount(12);
-        $lineItem1->setVat(Util::calculateVat($lineItem1->getNetAmount()));
+        $lineItem1->setNetAmount($total1);
+        $lineItem1->setVat($vat1);
         $invoice->appendLineItem($lineItem1);
 
         // Check number of line items
         $this->assertEquals(1, $invoice->getLineItemCount());
 
         // Add Line item and check count
+        $qty = 2;
+        $val = 44.23;
+        $total2 = $qty * $val;
+        $vat2 = Util::calculateVat($total2);
+
         $lineItem1 = new InvoiceLineItem();
-        $lineItem1->setQuantity(2);
+        $lineItem1->setQuantity($qty);
         $lineItem1->setDescription("Rulers");
-        $lineItem1->setNetAmount(44.23);
-        $lineItem1->setVat(Util::calculateVat($lineItem1->getNetAmount()));
+        $lineItem1->setNetAmount($total2);
+        $lineItem1->setVat($vat2);
         $invoice->appendLineItem($lineItem1);
 
         // Check number of line items
         $this->assertEquals(2, $invoice->getLineItemCount());
+
+        // Check the totals
+        $total = $total1 + $total2;
+        $this->assertEquals($total, $invoice->getNetTotal());
+
+        // Total with vat
+        $total += $vat1 + $vat2;
+        $this->assertEquals($total, $invoice->getTotal());
 
         try {
             $id = $invoice->save();

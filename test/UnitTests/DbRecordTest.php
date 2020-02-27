@@ -18,10 +18,14 @@ class DbRecordTest extends PHPUnit_Framework_TestCase
     public function testCustomerBasic()
     {
         // Set up the database
-        DbSetup::configure(DbRecord::METHODS_NONE);
+        DbSetup::configure(DbRecord::ACCESSORS_NONE);
         // Ensure the customer table is created
         $customer = new Customer();
-        $customer->dbUpdate();
+        try {
+            $customer->dbUpdate();
+        } catch (Exception $e) {
+            $this->assertTrue(false, "Unable to update the customer database");
+        }
 
         // Save and retrieve item
         $name = "fred";
@@ -80,10 +84,14 @@ class DbRecordTest extends PHPUnit_Framework_TestCase
     public function testCustomerGetterSetter()
     {
         // Set up the database
-        DbSetup::configure(DbRecord::METHODS_GETTER_SETTER);
+        DbSetup::configure(DbRecord::ACCESSORS_GETTER_SETTER);
         // Ensure the customer table is created
         $customer = new Customer();
-        $customer->dbUpdate();
+        try {
+            $customer->dbUpdate();
+        } catch (Exception $e) {
+            $this->assertTrue(false, "Unable to update the customer database");
+        }
 
         $name = "Smith" . time();
         $customer->setLastName($name);
@@ -140,7 +148,7 @@ class DbRecordTest extends PHPUnit_Framework_TestCase
     public function testCustomerUpdate()
     {
         // Set up the database
-        DbSetup::configure(DbRecord::METHODS_SINGLE);
+        DbSetup::configure(DbRecord::ACCESSORS_SINGLE);
         // Ensure the customer table is created
         $customer = new Customer();
 

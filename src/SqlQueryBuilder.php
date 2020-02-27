@@ -7,7 +7,7 @@ namespace Exigen\DbSupport;
 use Closure;
 use Exception;
 
-class SqlQueryBuilder implements DbFilterInterface
+class SqlQueryBuilder implements DbQueryInterface
 {
     private $distinct = false;
     private $where = array();
@@ -39,23 +39,15 @@ class SqlQueryBuilder implements DbFilterInterface
 
     public function getSQL()
     {
-        $distinct = ($this->distinct ? "DISTINCT " : "");
-        $sql = "SELECT " . $distinct . $this->alias . ".* FROM " . $this->table . " " . $this->alias;
-        $sql .= $this->getSQLCondition();
-
-        if (count($this->order_by) > 0) {
-            $sql .= " ORDER BY " . implode(",", $this->order_by);
-        }
-
-        if ($this->limit > 0) {
-            $sql .= " LIMIT " . $this->limit;
-        }
-        return $sql;
+        $field_list = $this->alias . ".*";
+        return $this->getSQLWithField($field_list);
     }
 
-    private function getSQLCondition()
+    private function getSQLWithField($field_list)
     {
-        $sql = "";
+        $distinct = ($this->distinct ? "DISTINCT " : "");
+        $sql = "SELECT " . $distinct . $field_list . " FROM " . $this->table . " " . $this->alias;
+
         // Add any tables that are needed
         foreach ($this->table_list as $alias => $join) {
             if (isset($this->used_tables[$alias])) {
@@ -63,7 +55,7 @@ class SqlQueryBuilder implements DbFilterInterface
             }
         }
 
-        // Where condition
+        // Where conditions
         if (count($this->where) > 0) {
             $where = implode(" ", $this->where);
             $pos = strpos($where, " ");
@@ -72,6 +64,14 @@ class SqlQueryBuilder implements DbFilterInterface
             }
         }
 
+        // Order by conditions
+        if (count($this->order_by) > 0) {
+            $sql .= " ORDER BY " . implode(",", $this->order_by);
+        }
+
+        if ($this->limit > 0) {
+            $sql .= " LIMIT " . $this->limit;
+        }
         return $sql;
     }
 
@@ -96,6 +96,21 @@ class SqlQueryBuilder implements DbFilterInterface
         $this->limit = $limit;
     }
 
+    protected function getScalar($field, $default = 0)
+    {
+        // Get SQL using given field as SQL field list
+        $sql = $this->getSQLWithField($field);
+
+        $list = DbAccess::getArrayFromSQL($sql, $this->bind_array);
+        // List is
+        if (count($list) > 0) {
+            foreach ($list[0] as $result) {
+                return $result;
+            }
+        }
+        return $default;
+    }
+
     /**
      * Get list of objects
      *
@@ -105,6 +120,17 @@ class SqlQueryBuilder implements DbFilterInterface
     public function getList()
     {
         return DbAccess::getListFromFilter($this);
+    }
+
+    public function getFirst()
+    {
+        $limit = $this->limit;
+        $this->limit = 1;
+        $list = $this->getList();
+
+        $this->limit = $limit;
+
+        return (count($list) > 0 ? $list[0] : null);
     }
 
     public function getListObject()

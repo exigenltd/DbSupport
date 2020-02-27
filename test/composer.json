@@ -6,7 +6,8 @@
     "autoload": {
         "psr-4": {
             "Exigen\\DbSupport\\": "../src",
-            "App\\": "classes/App"
+            "App\\": "classes/App",
+            "Simple\\": "classes/Simple"
         }
     }
 }

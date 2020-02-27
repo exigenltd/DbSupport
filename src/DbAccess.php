@@ -18,8 +18,7 @@ class DbAccess
     /* @var PDO $dbConnection */
     private static $dbConnection = null;
 
-    /**  @var string */
-    private static $schema = "";
+    private static $config_array = array();
 
     /**
      * @param array $config_settings
@@ -27,49 +26,91 @@ class DbAccess
      */
     public static function config(array $config_settings)
     {
+        // Verify the required connection details
+        $error = self::verifyConfiguration($config_settings);
+        if ($error != "") {
+            throw (new Exception ($error));
+        }
+
+        self::$config_array = $config_settings;
+
+        // Set the magic method type use by the DB records
+        $methods = isset($config_settings["methods"]) ? $config_settings["methods"] : "";
+        $method_list = array(DbRecord::ACCESSORS_GETTER_SETTER, DbRecord::ACCESSORS_SINGLE, DbRecord::ACCESSORS_NONE);
+        $type = in_array($methods, $method_list) ? $methods : DbRecord::ACCESSORS_GETTER_SETTER;
+        DbRecord::methodType($type);
+    }
+
+    private static function verifyConfiguration(array $config_settings)
+    {
         $server = isset($config_settings["server"]) ? $config_settings["server"] : "";
         $user = isset($config_settings["user"]) ? $config_settings["user"] : "";
         $schema = isset($config_settings["schema"]) ? $config_settings["schema"] : "";
-        $password = isset($config_settings["password"]) ? $config_settings["password"] : "";
-        $methods = isset($config_settings["methods"]) ? $config_settings["methods"] : "";
 
         if ($server == "") {
-            throw (new Exception (
-                "Database initialisation (DbRecord) - 'server' field is missing from configuration array"));
+            return "Database initialisation (DbRecord) - 'server' field is missing from configuration array";
         }
         if ($user == "") {
-            throw (new Exception (
-                "Database initialisation (DbRecord) - 'user' field is missing from configuration array"));
+            return "Database initialisation (DbRecord) - 'user' field is missing from configuration array";
         }
 
         if ($schema == "") {
-            throw (new Exception (
-                "Database initialisation (DbRecord) - 'schema' field is missing from configuration array"));
+            return "Database initialisation (DbRecord) - 'schema' field is missing from configuration array";
         }
+        return "";
+    }
 
-        self::$schema = $schema;
+    /**
+     * @throws Exception
+     */
+    private static function checkConnected()
+    {
+        // Do nothing if already connected.
+        if (self::$dbConnection != null) {
+            return;
+        }
+        // Verify the required connection details
+        $error = self::verifyConfiguration(self::$config_array);
+        if ($error != "") {
+            throw (new Exception ($error));
+        }
+        // Database connection settings...
+        $server = isset(self::$config_array["server"]) ? self::$config_array["server"] : "";
+        $user = isset(self::$config_array["user"]) ? self::$config_array["user"] : "";
+        $port = isset(self::$config_array["port"]) ? self::$config_array["port"] : "";
+        $schema = isset(self::$config_array["schema"]) ? self::$config_array["schema"] : "";
+        $password = isset(self::$config_array["password"]) ? self::$config_array["password"] : "";
+        $additional_options = isset(self::$config_array["options"]) ? self::$config_array["options"] : "";
 
+        // Set up connection options
         $options = array(
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
             PDO::ATTR_PERSISTENT         => false
         );
+        if (is_array($additional_options) And (count($additional_options) > 0)) {
+            foreach ($additional_options as $key => $val) {
+                $options [$key] = $val;
+            }
+        }
 
-        $dsn = "mysql:host=" . $server . ";dbname=" . $schema;
-        self::$dbConnection = new PDO($dsn, $user, $password, $options);
+        // Connection string
+        $connection_str = 'mysql:host=' . $server . ";";
+        $connection_str .= ($port == "") ? "" : 'port=' . $port . ";";
+        $connection_str .= 'dbname=' . $schema . ";";
 
-        $method_list = array(DbRecord::METHODS_GETTER_SETTER, DbRecord::METHODS_SINGLE, DbRecord::METHODS_NONE);
-        $type = in_array($methods, $method_list) ? $methods : DbRecord::METHODS_GETTER_SETTER;
-        DbRecord::methodType($type);
+        // And connect...
+        self::$dbConnection = new PDO($connection_str, $user, $password, $options);
     }
 
     /**
-     * @param      $sql
+     * @param       $sql
      * @param array $bind_parameter_array
      * @return PDOStatement
      * @throws Exception
      */
-    public static function runQuery($sql, array $bind_parameter_array = array())
+    private static function runQuery($sql, array $bind_parameter_array = array())
     {
+        self::checkConnected();
         //prepare the statement
         $statement = self::$dbConnection->prepare($sql);
 
@@ -107,7 +148,7 @@ class DbAccess
      * @return int|string
      * @throws Exception
      */
-    public static function runUpdateQuery($sql, $field_detail_array)
+    public static function runUpdateQuery($sql, $field_detail_array = array())
     {
         $statement = self::runQuery($sql, $field_detail_array);
         if ($statement === false) {
@@ -116,7 +157,7 @@ class DbAccess
         return self::$dbConnection->lastInsertId();
     }
 
-    private static function testMode($flag = null)
+    public static function testMode($flag = null)
     {
         static $st_test_mode = false;
         if (func_num_args() > 0) {
@@ -127,7 +168,7 @@ class DbAccess
 
     public static function schema()
     {
-        return self::$schema;
+        return isset(self::$config_array["schema"]) ? self::$config_array["schema"] : "";
     }
 
     /**
@@ -136,13 +177,13 @@ class DbAccess
      * is passed.
      * The sql that returns data for object list is passed.
      *
-     * @param DbFilterInterface $filter
-     * @param string            $key_field
+     * @param DbQueryInterface $filter
+     * @param string           $key_field
      *
      * @return array of objects
      * @throws Exception
      */
-    public static function &getListFromFilter(DbFilterInterface $filter, $key_field = "")
+    public static function &getListFromFilter(DbQueryInterface $filter, $key_field = "")
     {
         $objectArray = array();
         try {
@@ -158,8 +199,7 @@ class DbAccess
             $statement = DbAccess::runQuery($sql, $bind_parameter_array);
 
             if ($statement !== false) {
-                $data = $statement->fetchAll(PDO::FETCH_ASSOC);
-                foreach ($data as $row) {
+                foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
                     $dbObject = $filter->getListObject();
                     $dbObject->fillFromArray($row);
 
@@ -174,6 +214,22 @@ class DbAccess
             die($e->getMessage());
         }
         return $objectArray;
+    }
+
+    /**
+     * @param       $sql
+     * @param array $bind_array
+     * @return array
+     * @throws Exception
+     */
+    public static function getArrayFromSQL($sql, $bind_array = array())
+    {
+        $bind_parameter_array = self::getBindParameterArray($bind_array);
+        $statement = DbAccess::runQuery($sql, $bind_parameter_array);
+        if ($statement !== false) {
+            return $statement->fetchAll(PDO::FETCH_ASSOC);
+        }
+        return array();
     }
 
     private static function getBindParameterArray(array $filterBindArray)

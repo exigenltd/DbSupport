@@ -57,11 +57,19 @@ class Customer extends DbRecord
                 'db_type' => 'datetime',
                 "access"  => DbRecord::ACCESS_READ_ONLY
             ),
+            'guid'      => array(
+                'type'    => DbRecord::DB_TYPE_STRING,
+                'db_type' => 'varchar(32)',
+                "access"  => DbRecord::ACCESS_READ_ONLY
+            ),
         );
         parent::__construct("customers", "id", $fieldList);
 
         if ($this->fieldValue("created_at") == 0) {
             $this->fieldValue("created_at", time());
+        }
+        if ($this->fieldValue("guid") == "") {
+            $this->fieldValue("guid", uniqid("cust-"));
         }
     }
 
@@ -69,4 +77,5 @@ class Customer extends DbRecord
     {
         return $this->fieldValue("first_name", $name, func_num_args());
     }
+
 }

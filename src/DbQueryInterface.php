@@ -5,23 +5,21 @@ namespace exigen\DbSupport;
  * Database Filter
  *
  */
-interface DbFilterInterface
+interface DbQueryInterface
 {
     /**
-     * SQL
-     *
      * @return string
      */
     public function getSql();
 
-
+    /**
+     * @return array
+     */
     public function getBindList();
 
     /**
      * @return DbRecord
      */
     public function getListObject();
-
-
 }
 

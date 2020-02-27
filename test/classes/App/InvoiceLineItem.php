@@ -26,6 +26,7 @@ class InvoiceLineItem extends DbRecord
             'description' => array("type" => DbRecord::DB_TYPE_STRING, "db_type" => 'varchar(100)'),
             'net_amount'  => array("type" => DbRecord::DB_TYPE_NUMERIC, "db_type" => 'decimal(13,4)'),
             'vat'         => array("type" => DbRecord::DB_TYPE_NUMERIC, "db_type" => 'decimal(13,4)'),
+            // Creation time and guid are read only properties....
             'guid'        => array(
                 "type"    => DbRecord::DB_TYPE_STRING,
                 "db_type" => 'varchar(32)',
@@ -39,9 +40,11 @@ class InvoiceLineItem extends DbRecord
         );
         parent::__construct("invoice_line_items", "id", $fieldList);
 
+        // Ensure item has creation time (i.e. set on creation)
         if ($this->fieldValue("created_at") == 0) {
             $this->fieldValue("created_at", time());
         }
+        // Ensure item has a guid (i.e. set on creation)
         if ($this->fieldValue("guid") == "") {
             $this->fieldValue("guid", uniqid("li-"));
         }
