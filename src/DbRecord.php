@@ -207,6 +207,7 @@ abstract class DbRecord
         }
         if ($this->new_db_row) {
             $this->valArray[$this->primaryKey] = $update_id;
+            $this->new_db_row = false;
         }
         return $this->valArray[$this->primaryKey];
     }

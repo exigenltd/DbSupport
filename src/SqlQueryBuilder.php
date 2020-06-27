@@ -9,11 +9,12 @@ use Exception;
 
 class SqlQueryBuilder implements DbQueryInterface
 {
+    protected $bind_array = array();
+    protected $table_list = array();
+
     private $distinct = false;
     private $where = array();
-    private $bind_array = array();
     private $order_by = array();
-    private $table_list = array();
     private $used_tables = array();
 
     private $limit = 200;
@@ -144,4 +145,9 @@ class SqlQueryBuilder implements DbQueryInterface
         return $this->bind_array;
     }
 
+    public function addTable($alias, $table_join)
+    {
+        $this->table_list [$alias] = $table_join;
+        $this->useTable($alias);
+    }
 }
