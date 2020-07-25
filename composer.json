@@ -1,6 +1,6 @@
 {
     "name": "exigen/dbsupport",
-    "description": "Database Support",
+    "description": "Provides a quick and easy mechanism for build database model classes. Incredible simple to use but extremely powerful and scalable.",
     "type": "library",
     "authors": [
         {
